@@ -12,3 +12,5 @@
 2024-10-15 11:36:37,888 - INFO - Processing Linear Regression
 2024-10-15 14:02:05,848 - INFO - Processing Linear Regression
 2024-10-15 22:49:01,439 - INFO - Processing Linear Regression
+2024-10-16 08:03:36,131 - INFO - Processing Linear Regression
+2024-10-16 08:23:29,048 - INFO - Processing Linear Regression

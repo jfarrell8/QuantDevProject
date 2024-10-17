@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
 import joblib
+import os
+from dotenv import load_dotenv
 from ml_prediction import LinearRegressionModel, RandomForestModel
 
 class PriceDiffStrategy:
@@ -25,7 +27,29 @@ class PriceDiffStrategy:
     
 
 if __name__ == "__main__":
-    filename = r"C:\Users\Admin\Desktop\GitHubPortfolio\QuantDevProject\src\results\model_results.pkl"
+    load_dotenv()
+    input_dir = os.getenv("LOCAL_DATA_DIR")
+    logging_dir = os.getenv("LOGGING_DIR")
+    results_dir = os.getenv("RESULTS_DIR")
+
+    filename = os.path.join(results_dir, "model_results.pkl")
     j = joblib.load(filename)
+    # for model_name, model_info in j.items():
+    #     print(model_name)
+    #     df = pd.DataFrame(j[model_name]['cv_results'])
+    #     df.to_excel(os.path.join(results_dir, f"{model_name.lower().replace(' ', '')}_model_results.xlsx"), index=False)
+
+    # optimal model - hard code for testing right now
     df = pd.DataFrame(j['Linear Regression']['cv_results'])
-    df.to_excel(r"C:\Users\Admin\Desktop\GitHubPortfolio\QuantDevProject\src\results\model_results_linearRegression.xlsx")
+    df_s = df[df.ErrorType !='MAPE']
+    cv_dfs = []
+    for idx, row in df_s.iterrows():
+        test_index = row.TestIndex
+        # preds = [float(x) for x in row.yPred.strip('[]').split()]
+        preds = row.yPred
+        y_true = row.yTrue
+        preds_df = pd.DataFrame(index=test_index, data={'yPred': preds, 'yTrue': y_true})
+        cv_dfs.append(preds_df)
+
+    cv_df = pd.concat(cv_dfs, axis=0)
+    cv_df.to_excel(os.path.join(results_dir, f"linear_regression_IS_preds.xlsx"))

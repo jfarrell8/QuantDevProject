@@ -151,10 +151,12 @@ class TimeSeriesModelRegistry:
             cv_results = {
                             'Params': [],
                             'Fold': [],
-                            'TrainStartDate': [],
-                            'TrainEndDate': [],
-                            'TestStartDate': [],
-                            'TestEndDate': [],
+                            # 'TrainStartDate': [],
+                            # 'TrainEndDate': [],
+                            # 'TestStartDate': [],
+                            # 'TestEndDate': [],
+                            'TrainIndex': [],
+                            'TestIndex': [],
                             'ErrorType': [],
                             'ErrorVal': [],
                             'yTrue': [],
@@ -181,12 +183,16 @@ class TimeSeriesModelRegistry:
                     mape_error = mean_absolute_percentage_error(y_pred, y_test)
                     errors.append(rmse_error)
                     
-                    metadata_str = ['Params', 'Fold', 'TrainStartDate', 'TrainEndDate', 'TestStartDate', 'TestEndDate',\
-                                    'ErrorType', 'ErrorVal', 'yTrue', 'yPred']
-                    metadata_rmse_vals = [params, fold, X_train.index[0], X_train.index[-1], X_test.index[0], X_test.index[-1], \
-                                     'RMSE', rmse_error, y_test.values, y_pred]
-                    metadata_mape_vals = [params, fold, X_train.index[0], X_train.index[-1], X_test.index[0], X_test.index[-1], \
-                                     'MAPE', mape_error, y_test.values, y_pred]
+                    # metadata_str = ['Params', 'Fold', 'TrainStartDate', 'TrainEndDate', 'TestStartDate', 'TestEndDate',\
+                    #                 'ErrorType', 'ErrorVal', 'yTrue', 'yPred']
+                    # metadata_rmse_vals = [params, fold, X_train.index[0], X_train.index[-1], X_test.index[0], X_test.index[-1], \
+                    #                  'RMSE', rmse_error, y_test.values, y_pred]
+                    # metadata_mape_vals = [params, fold, X_train.index[0], X_train.index[-1], X_test.index[0], X_test.index[-1], \
+                    #                  'MAPE', mape_error, y_test.values, y_pred]
+                    metadata_str = ['Params', 'Fold', 'TrainIndex', 'TestIndex', 'ErrorType', 'ErrorVal', 'yTrue', 'yPred']
+                    metadata_rmse_vals = [params, fold, X_train.index, X_test.index, 'RMSE', rmse_error, y_test.values, y_pred]
+                    metadata_mape_vals = [params, fold, X_train.index, X_test.index, 'MAPE', mape_error, y_test.values, y_pred]
+
                     for key, rmse_val, mape_val in list(zip(metadata_str, metadata_rmse_vals, metadata_mape_vals)):
                         cv_results[key].append(rmse_val)
                         cv_results[key].append(mape_val)

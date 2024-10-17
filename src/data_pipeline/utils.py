@@ -9,8 +9,8 @@ import joblib
 
 # Save dictionary to a pickle file
 def save_pickle_file(my_dict: dict, filepath: str) -> None:
-    with open(filepath, 'wb') as f:
-        joblib.dump(my_dict, f)
+    # with open(filepath, 'wb') as f:
+    joblib.dump(my_dict, filepath)
 
 def load_pickle_file(filename: str) -> Dict:
     return joblib.load(filename)
