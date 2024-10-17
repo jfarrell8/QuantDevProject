@@ -45,7 +45,6 @@ if __name__ == "__main__":
     cv_dfs = []
     for idx, row in df_s.iterrows():
         test_index = row.TestIndex
-        # preds = [float(x) for x in row.yPred.strip('[]').split()]
         preds = row.yPred
         y_true = row.yTrue
         preds_df = pd.DataFrame(index=test_index, data={'yPred': preds, 'yTrue': y_true})

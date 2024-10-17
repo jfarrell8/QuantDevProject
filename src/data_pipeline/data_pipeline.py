@@ -25,21 +25,7 @@ class DatabaseInterface(abc.ABC):
     def check_data_exists(self, entity: str, start_date: datetime=None, end_date: datetime=None) -> bool:
         pass
 
-
-
-# class DataPipeline:
-#     def __init__(self, data_sources: List[Dict[str, Any]], database: DatabaseInterface):
-#         self.data_sources = data_sources
-#         self.database = database
-
-#     def initialize(self) -> None:
-#         self.database.initialize_database()
-
-#     def run(self, start_date: datetime, end_date: datetime) -> Dict[str, Any]:
-#         all_data = []
-
-#         return
-    
+   
 class PostgresDatabase(DatabaseInterface):
     def __init__(self, username: str, password: str, host: str, port: str, database: str, schema: str, dir: str) -> None:
         self.username = username
