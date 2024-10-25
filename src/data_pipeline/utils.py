@@ -5,6 +5,8 @@ import os
 import logging
 from dotenv import load_dotenv
 import pickle
+import torch
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import joblib
 
 # Save dictionary to a pickle file
@@ -52,3 +54,15 @@ def setup_logging(model_name, root_dir):
         format = '%(asctime)s - %(levelname)s - %(message)s'
     )
 
+def analyze_sentiment_finbert(text):
+    tokenizer = AutoTokenizer.from_pretrained("ProsusAI/finbert")
+    model = AutoModelForSequenceClassification.from_pretrained("ProsusAI/finbert")
+    
+    inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=512)
+    outputs = model(**inputs)
+    
+    probabilities = torch.nn.functional.softmax(outputs.logits, dim=-1)
+    positive_prob = probabilities[0][2].item()
+    negative_prob = probabilities[0][0].item()
+    
+    return positive_prob - negative_prob  # Returns a score between -1 and 1

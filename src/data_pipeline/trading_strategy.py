@@ -52,3 +52,7 @@ if __name__ == "__main__":
 
     cv_df = pd.concat(cv_dfs, axis=0)
     cv_df.to_excel(os.path.join(results_dir, f"linear_regression_IS_preds.xlsx"))
+
+    strategy = PriceDiffStrategy()
+    signals = strategy.generate_signals(forecasts=cv_df[['yPred']], day_ahead_prices=cv_df[['yTrue']])
+    print('y')

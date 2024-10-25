@@ -1,8 +1,3 @@
 series_name,description,api_call,root,frequency,data_col,sort,sort_direction,offset_value,length,facets
 natural_gas_price,Henry Hub natural gas spot prices,TRUE,https://api.eia.gov/v2/natural-gas/pri/fut/data/,daily,value,period,desc,0,5000,"[('series', 'RNGWHHD')]"
 crude_oil_price,crude oil spot prices,TRUE,https://api.eia.gov/v2/petroleum/pri/spt/data/,daily,value,period,desc,0,5000,"[('series', 'RWTC')]"
-elec_demand,NE electricity daily demand,TRUE,https://api.eia.gov/v2/electricity/rto/daily-region-data/data/,daily,value,period,desc,0,5000,"[('respondent', 'NE'), ('type', 'D'), ('timezone', 'Eastern')]"
-elec_dayahead_demand_forecast,NE electricity day-ahead demand forecast,TRUE,https://api.eia.gov/v2/electricity/rto/daily-region-data/data/,daily,value,period,desc,0,5000,"[('respondent', 'NE'), ('type', 'DF'), ('timezone', 'Eastern')]"
-elec_net_generation,NE electricity net generation,TRUE,https://api.eia.gov/v2/electricity/rto/daily-region-data/data/,daily,value,period,desc,0,5000,"[('respondent', 'NE'), ('type', 'NG'), ('timezone', 'Eastern')]"
-elec_total_interchange,NE electricity total interchange,TRUE,https://api.eia.gov/v2/electricity/rto/daily-region-data/data/,daily,value,period,desc,0,5000,"[('respondent', 'NE'), ('type', 'TI'), ('timezone', 'Eastern')]"
-elec_spot_price,NE weighted average electricity spot prices,FALSE,,,,,,,,
