@@ -6,68 +6,18 @@ from typing import Type, Any, Tuple
 
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import root_mean_squared_error, mean_absolute_percentage_error
-from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import LinearRegression, Ridge, Lasso
 from sklearn.pipeline import Pipeline
 from joblib import Parallel, delayed
 from itertools import product
 from collections import defaultdict
 
 import logging
-from utils import setup_logging, save_pickle_file
+from utils import setup_logging, save_pickle_file, standardize_df
+from models import TimeSeriesModel, LinearRegressionModel, RandomForestModel
 from dotenv import load_dotenv
+from datetime import datetime
 import os
 import sys
-
-
-
-
-class TimeSeriesModel(ABC):
-    @abstractmethod
-    def fit(self, X_train, y_train):
-        pass
-    
-    @abstractmethod
-    def predict(self, X_test):
-        pass
-
-    # @abstractmethod
-    # def evaluate(self, X_test, y_test):
-    #     y_pred = self.predict(X_test)
-    #     return mean_squared_error(y_test, y_pred)
-    
-
-class LinearRegressionModel(TimeSeriesModel):
-    def __init__(self, **params):
-        if params:
-            self.model = LinearRegression(**params)
-        else:
-            self.model = LinearRegression()
-
-    def fit(self, X_train, y_train):
-        self.model.fit(X_train, y_train)
-
-    def predict(self, X_test):
-        return self.model.predict(X_test)
-
-
-class RandomForestModel(TimeSeriesModel):
-    def __init__(self, **params):
-        if params:
-            self.model = RandomForestRegressor(**params)
-        else:
-            self.model = RandomForestRegressor()
-
-    def fit(self, X_train, y_train):
-        self.model.fit(X_train, y_train)
-
-    def predict(self, X_test):
-        return self.model.predict(X_test)
-    
-
-
-
 
 
 
@@ -233,7 +183,7 @@ class TimeSeriesModelRegistry:
         X_train_full, y_train_full = train_data.iloc[:, :-1], train_data.iloc[:, -1]
         X_out_of_sample, y_out_of_sample = out_of_sample_data.iloc[:, :-1], out_of_sample_data.iloc[:, -1]
 
-        
+        print('\n')
         for model_name, model_info in self.models.items():
             model_class = model_info['model_class']
             best_params = model_info['best_params']
@@ -263,34 +213,57 @@ class TimeSeriesModelRegistry:
             for v in product(*values):
                 yield dict(zip(keys, v))
 
+
+
             
 
 # Example usage
 if __name__ == "__main__":
+
+    run_notes = input("Enter notes for model run (if necessary): ")
+    
     load_dotenv()
     input_dir = os.getenv("LOCAL_DATA_DIR")
     logging_dir = os.getenv("LOGGING_DIR")
     results_dir = os.getenv("RESULTS_DIR")
 
+    timestamp_folder = datetime.now().strftime('%Y%m%d%H%M%S')
+
+    os.makedirs(os.path.join(results_dir, timestamp_folder))
+    os.makedirs(os.path.join(logging_dir, timestamp_folder))
+    with open(os.path.join(results_dir, timestamp_folder, 'model_notes.txt'), 'w') as f:
+        f.write(run_notes)
+
+    #### Make the below inputs/configs/files or the like in the future? ####
+    ticker = 'DUK'
+    lookahead = 1
+    #################################################################
+
     # From data_pipeline
     data = pd.read_csv(os.path.join(input_dir, "input_dataset.csv"), index_col='period')
+
+    # pre-process the data
+    # shift returns so we're forecasting the lookahead period
+    data[f'{ticker}_rets'] = data[f'{ticker}_rets'].shift(-lookahead)
+    data.dropna(inplace=True)
+
+    # normalization/standardization
+    data = standardize_df(data)
 
     # Parameters
     train_period_length = 63
     test_period_length = 10
-    # n_splits = int(3 * 252 / test_period_length)
-    # n_splits=5
-    # lookahead = 1
 
-    registry = TimeSeriesModelRegistry(logging_path=logging_dir, data=data, final_test_size=test_period_length)
+
+    registry = TimeSeriesModelRegistry(logging_path=os.path.join(logging_dir, timestamp_folder), data=data, final_test_size=test_period_length)
     
-    # Linear regression model with no hyperparameters
-    registry.register('Linear Regression', LinearRegressionModel, {})
+    # # Linear regression model wit h no hyperparameters
+    # registry.register('Linear Regression', LinearRegressionModel, {})
 
     # RandomForest model with hyperparams
     rf_param_grid = {
         'n_estimators': [50],
-        'max_depth': [5, 10]        
+        'max_depth': [5, 10]
     }
     registry.register('Random Forest', RandomForestModel, rf_param_grid)
     
@@ -308,23 +281,17 @@ if __name__ == "__main__":
         # compile out of sample errors for each model
         out_sample_error = out_sample_results[model_name]['out_sample_rmse_error']
         model_oos_errors = pd.concat([model_oos_errors, pd.DataFrame(index=[model_name], data=[out_sample_error], columns=['oos_error'])], axis=0)
-        print(f"{model_name} Out-of-Sample error: ", out_sample_error)
 
         # look at preds vs true
         out_sample_preds = out_sample_results[model_name]['y_pred_out_sample']
         preds_df = pd.concat([preds_df, pd.DataFrame(data=out_sample_preds, columns=[model_name.replace(" ", "") + '_preds'])], axis=1)
 
     preds_df.index = data.index[-test_period_length:]
-    preds_df.to_csv(os.path.join(results_dir, f'preds_df.csv'))
-    
-    print('##########################')
-    print('##########################')
-    print(model_oos_errors)
-    print('##########################')
-    print('##########################')
-
-    model_oos_errors.to_csv(os.path.join(results_dir, f'model_out_of_sample_errors.csv'))
+    preds_df.to_csv(os.path.join(results_dir, timestamp_folder, f'preds_df.csv'))
 
 
-    model_results_filepath = os.path.join(results_dir, 'model_results.pkl')
+    model_oos_errors.to_csv(os.path.join(results_dir, timestamp_folder, f'model_out_of_sample_errors.csv'))
+
+
+    model_results_filepath = os.path.join(results_dir, timestamp_folder, 'model_results.pkl')
     save_pickle_file(registry.models, model_results_filepath)

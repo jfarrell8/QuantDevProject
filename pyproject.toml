@@ -25,6 +25,8 @@ requests-cache = "^1.2.1"
 retry-requests = "^2.0.0"
 transformers = "^4.46.0"
 torch = "^2.5.0"
+matplotlib = "^3.9.2"
+seaborn = "^0.13.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.3"

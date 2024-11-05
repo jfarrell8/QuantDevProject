@@ -16,13 +16,15 @@ from dataclasses import dataclass
 import os
 from dotenv import load_dotenv
 from cache_system import FileCache, APICache
-from utils import api_get, nan_series_handling, analyze_sentiment_finbert
+from utils import api_get, nan_series_handling, analyze_sentiment_finbert, winsorize_data, drop_corr_pair1
 import sys
 import ast
 import re
 from time import sleep
 from datetime import datetime, timedelta
 from functools import reduce
+import warnings
+warnings.filterwarnings("ignore", category=pd.errors.SettingWithCopyWarning)
 
 class DataSource(ABC):
     @abstractmethod
@@ -74,9 +76,9 @@ class PostgresDatabase(DatabaseInterface):
             if query.strip().lower().startswith(('insert', 'create', 'update', 'delete')):
                 conn.commit()
                 # query_meta = query.strip().split('(')[0].strip().replace(';', '')
-                print(f'{query_meta} query executed and committed successfully.')
+                # print(f'{query_meta} query executed and committed successfully.')
             elif query.strip().lower().startswith("select"):
-                print(f'Select query ({query_meta}) executed successfully.')
+                # print(f'Select query ({query_meta}) executed successfully.')
                 # get records
                 rows = cur.fetchall()
 
@@ -175,8 +177,8 @@ class PostgresDatabase(DatabaseInterface):
         try:
             df = pd.read_csv(os.path.join(self.local_dir, 'eia_code_info.csv'))
             df = df.where(pd.notna(df), None)
-            df['offset_value'] = nan_series_handling(df['offset_value'], data_type='Int64') # need to handle the obscure issue
-            df['length'] = nan_series_handling(df['length'], data_type='Int64') # same as above
+            df['offset_value'] = nan_series_handling(df['offset_value'], data_type='int') # need to handle the obscure issue
+            df['length'] = nan_series_handling(df['length'], data_type='int') # same as above
 
             insert_query = f"""
                 INSERT INTO {self.schema_name}.eia_code_info (series_name, description, api_call, root, frequency, data_col, sort, sort_direction, offset_value, length, facets)
@@ -436,7 +438,7 @@ class MeteoDataSource(DataSource):
             weather_response = self.get_open_meteo_data(lat, lon)
             weather_df = self.open_meteo_postprocessing(weather_response)
             weather_dfs.append(weather_df)
-            sleep(0.1)
+            sleep(1.5)
 
         return weather_dfs
     
@@ -510,7 +512,8 @@ class AlphaVantageDataSource(DataSource):
             df = df.drop('reportedCurrency', axis=1)
             dfs.append(df)
         return pd.concat(dfs, axis=1)
-    
+
+
     def _process_data(self, fundamental_df: pd.DataFrame) -> pd.DataFrame:
         fundamental_df = (fundamental_df
                     .loc[:, ~fundamental_df.columns.duplicated()] # drop latter two occurrences of fiscalDateEnding & netIncome
@@ -958,7 +961,36 @@ def main():
     print('Downloading AlphaVantage fundamental data...')
     fundamental_df = fundamental_data.fetch_data()
 
-    db.insert_into_factor_ts_table(fundamental_df, 'AlphaVantage')
+    # insert data into the database
+    db.insert_into_factor_ts_table(fundamental_df, 'AlphaVantage')    
+
+    ## ALPHAVANTAGE POST-PROCESSING/FEATURE ENGINEERING ##
+    # keep only the ratios
+    ratios = ['netProfitMargin', 'ROA', 'ROE', 'debtEquityRatio', 'debtAssetRatio', 'interestCoverageRatio', 'assetTurnoverRatio', \
+                'currentRatio', 'quickRatio', 'cashRatio', 'capitalExpenditureEfficiency', 'debtServiceCoverageRatio']
+    fundamental_df.set_index('period', inplace=True)
+    fundamental_df = fundamental_df[ratios]
+
+    # add in temporal adjustments - push this to a feature engineering class later
+    for col in fundamental_df.columns:
+        fundamental_df[f'{col}_QoQ_Growth'] = fundamental_df[col].pct_change()
+        fundamental_df[f'{col}_4Q_MA'] = fundamental_df[col].rolling(4).mean()
+        fundamental_df[f'{col}_12Q_MA'] = fundamental_df[col].rolling(12).mean()
+        epsilon = 1e-10
+        denominator = fundamental_df[col].shift(4).replace(0, epsilon)
+        fundamental_df[f'{col}_YOY'] = (fundamental_df[col] / denominator) - 1
+
+    fundamental_df.dropna(inplace=True)
+
+    # remove the factor(s) that are highly correlated (over 0.9 abs)
+    fundamental_df = drop_corr_pair1(fundamental_df)
+
+    # winsorize ratio data to 1.5% lower/98.5% upper
+    for col in fundamental_df.columns:
+        fundamental_df[col] = winsorize_data(fundamental_df[col], 1.5, 98.5)
+
+    # resample to daily time series to match other datasets later
+    fundamental_df_daily = fundamental_df.resample('D').ffill()
     
 
     # get EDGAR 10Qs and 10Ks
@@ -984,16 +1016,19 @@ def main():
 
     db.insert_into_factor_ts_table(sentiments, 'EDGAR')
 
-    # join to fundamental data since both are quarterly
-    # fundamental_df = fundamental_df.join(sentiments)
-    fundamental_df = pd.merge(fundamental_df, sentiments, on='period')
+    sentiments.set_index('period', inplace=True)
+    sentiments_daily = sentiments.resample('D').ffill().bfill()
 
-    # need to resample to daily data
-    fundamental_df.set_index('period', inplace=True)
-    # fundamental_df.index = pd.to_datetime(fundamental_df.index)
-    fundamental_df.index.name = 'period'
-    fundamental_df_daily = fundamental_df.resample('D').ffill()
-    fundamental_df_daily.reset_index(inplace=True)
+    # # join to fundamental data since both are quarterly
+    # # fundamental_df = fundamental_df.join(sentiments)
+    # fundamental_df = pd.merge(fundamental_df, sentiments, on='period')
+
+    # # need to resample to daily data
+    # fundamental_df.set_index('period', inplace=True)
+    # # fundamental_df.index = pd.to_datetime(fundamental_df.index)
+    # fundamental_df.index.name = 'period'
+    # fundamental_df_daily = fundamental_df.resample('D').ffill()
+    # fundamental_df_daily.reset_index(inplace=True)
 
     # get EIA data: crude oil and natural gas spot prices 
     eia_codes = db.get_eia_code_info() # right now this is a list of tuples
@@ -1019,8 +1054,16 @@ def main():
     # combine economic price data
     econ_data = pd.merge(eia_data, elec_spot_prices, on='period').dropna()
 
+    ## ECON DATA FEATURE ENGINEERING ##
+    # transform based on EDA
+    econ_data['natural_gas_price'] = winsorize_data(econ_data['natural_gas_price'], 1, 99)
+    econ_data['elec_spot_price'] = np.log1p(econ_data['elec_spot_price'])
 
-    # get weather data
+    econ_data.set_index('period', inplace=True)
+
+
+
+    ## WEATHER DATA ##
     # Charlotte, NC coordinates
     char_lat = 35.2271
     char_lon = -80.9379
@@ -1051,7 +1094,18 @@ def main():
     weather_df = weather_df.reset_index()
     db.insert_into_factor_ts_table(weather_df, 'Meteo')
 
+    ## WEATHER FEATURE ENGINEERING ##
+    # features that are highly correlated are dropped
+    weather_df.drop(['temperature_2m_max', 'temperature_2m_min', 'precipitation_sum'], axis=1, inplace=True)
+    
+    # log transform snowfall and rainfall sums
+    weather_df['snowfall_sum'] = np.log1p(weather_df['snowfall_sum'])
+    weather_df['rain_sum'] = np.log1p(weather_df['rain_sum'])
 
+    weather_df.set_index('period', inplace=True)
+
+
+    ## RETURNS DATA ##
     # get price/rets data
     yfinance_cache = cache_factory.get_cache_handler("yfinance", timedelta(hours=24))
     yfinance_source = YahooFinanceDataSource(symbols=[ticker])
@@ -1066,17 +1120,27 @@ def main():
 
     db.insert_into_factor_ts_table(rets, 'YahooFinance')
 
+    rets.set_index('period', inplace=True)
 
     # combine all data sources into one final input dataset
 
     def period_to_string(df):
-        df['period'] = df['period'].apply(lambda x: x.strftime('%Y-%m-%d'))
+        # df['period'] = df['period'].apply(lambda x: x.strftime('%Y-%m-%d'))
+        df.index = df.index.strftime('%Y-%m-%d')
         return df
     
-    datasets = [fundamental_df_daily, econ_data, weather_df, rets]
+    
+
+    datasets = [fundamental_df_daily, sentiments_daily, econ_data, weather_df, rets]
     datasets = [period_to_string(df) for df in datasets]
-    input_dataset = reduce(lambda left, right: pd.merge(left, right, on='period'), datasets)
-    input_dataset.to_csv(os.path.join(local_data_dir, "input_dataset.csv"), index=False)
+    # input_dataset = reduce(lambda left, right: pd.merge(left, right, on='period'), datasets)
+    input_dataset = pd.concat(datasets, axis=1)
+    input_dataset = (input_dataset
+                    .sort_index(ascending=True)
+                    .dropna())
+    # input_dataset.to_csv(os.path.join(local_data_dir, "input_dataset.csv"), index=False)
+    input_dataset.to_csv(os.path.join(local_data_dir, "input_dataset.csv"))
+
 
     
 
