@@ -12,8 +12,8 @@ from itertools import product
 from collections import defaultdict
 
 import logging
-from utils import setup_logging, save_pickle_file, standardize_df
-from models import TimeSeriesModel, LinearRegressionModel, RandomForestModel
+from src.data_pipeline.utils import setup_logging, save_pickle_file, standardize_df, load_pickle_file
+from src.data_pipeline.models import TimeSeriesModel, LinearRegressionModel, RandomForestModel, SARIMAXModel
 from dotenv import load_dotenv
 from datetime import datetime
 import os
@@ -73,9 +73,6 @@ class TimeSeriesModelRegistry:
         self.models[name] = {
             'model_class': model_class,
             'param_grid': param_grid
-            # 'best_params': None,
-            # 'best_model': None,
-            # 'cv_results': None
         }
 
     def perform_walk_forward_cv(self, train_period_length: int, test_period_length: int, \
@@ -90,21 +87,17 @@ class TimeSeriesModelRegistry:
         results = {}
 
         def process_model(model_name: str, model_info: dict) -> Tuple[str, ]:
-            setup_logging(model_name, self.logging_path)
-            logging.info(f"Processing {model_name}")
+            logger = setup_logging(f"wfcv_{model_name.replace(' ', '')}.log", self.logging_path)
 
             model_class = model_info['model_class']
             param_grid = model_info['param_grid']
+            logger.info(f"Processing {model_name}: {param_grid}...")
             best_error = np.inf
             best_params = None
             best_model_instance = None
             cv_results = {
                             'Params': [],
                             'Fold': [],
-                            # 'TrainStartDate': [],
-                            # 'TrainEndDate': [],
-                            # 'TestStartDate': [],
-                            # 'TestEndDate': [],
                             'TrainIndex': [],
                             'TestIndex': [],
                             'ErrorType': [],
@@ -114,6 +107,7 @@ class TimeSeriesModelRegistry:
                             }
 
             for params in self.parameter_grid(param_grid):
+                logger.info(f"    Processing {params}...")
                 errors = []
                 model = model_class(**params)
 
@@ -127,18 +121,11 @@ class TimeSeriesModelRegistry:
 
                     # Train the model
                     model.fit(X_train, y_train)
-                    # error = model.evaluate(X_test, y_test)
                     y_pred = model.predict(X_test)
                     rmse_error = root_mean_squared_error(y_pred, y_test)
                     mape_error = mean_absolute_percentage_error(y_pred, y_test)
                     errors.append(rmse_error)
                     
-                    # metadata_str = ['Params', 'Fold', 'TrainStartDate', 'TrainEndDate', 'TestStartDate', 'TestEndDate',\
-                    #                 'ErrorType', 'ErrorVal', 'yTrue', 'yPred']
-                    # metadata_rmse_vals = [params, fold, X_train.index[0], X_train.index[-1], X_test.index[0], X_test.index[-1], \
-                    #                  'RMSE', rmse_error, y_test.values, y_pred]
-                    # metadata_mape_vals = [params, fold, X_train.index[0], X_train.index[-1], X_test.index[0], X_test.index[-1], \
-                    #                  'MAPE', mape_error, y_test.values, y_pred]
                     metadata_str = ['Params', 'Fold', 'TrainIndex', 'TestIndex', 'ErrorType', 'ErrorVal', 'yTrue', 'yPred']
                     metadata_rmse_vals = [params, fold, X_train.index, X_test.index, 'RMSE', rmse_error, y_test.values, y_pred]
                     metadata_mape_vals = [params, fold, X_train.index, X_test.index, 'MAPE', mape_error, y_test.values, y_pred]
@@ -148,7 +135,7 @@ class TimeSeriesModelRegistry:
                         cv_results[key].append(mape_val)
 
 
-                    print(f"    Fold {fold + 1} RMSE: {rmse_error}, MAPE: {mape_error}")
+                    logger.info(f"        Fold {fold + 1} RMSE: {rmse_error}, MAPE: {mape_error}")
 
                 avg_error = np.mean(errors)
                 if avg_error < best_error:
@@ -163,17 +150,21 @@ class TimeSeriesModelRegistry:
             delayed(process_model)(model_name, model_info) for model_name, model_info in self.models.items()
         )
         
+        insample_logger = setup_logging(f"best_insample_results.log", self.logging_path)
         for model_name, best_params, best_model_instance, best_error, cv_results in parallel_results:
             self.models[model_name]['best_params'] = best_params
             self.models[model_name]['best_model'] = best_model_instance
             self.models[model_name]['best_error'] = best_error
             self.models[model_name]['cv_results'] = cv_results
             results[model_name] = {'avg_error': best_error, 'best_params': best_params}
-            print(f"Model: {model_name}, Best Params: {best_params}, CV RMSE: {best_error}")
+            insample_logger.info(f"Model: {model_name}, Best Params: {best_params}, CV RMSE: {best_error}")
 
         return results
 
     def out_of_sample_predict(self) -> dict:
+
+        oos_results_logger = setup_logging(f"best_outofsample_results.log", self.logging_path)
+
         # perform out of sample forecast for best models
         # Final out-of-sample evaluation (train on the full training data, test on the hold-out set)
         train_data = self.data[:-self.final_test_size]
@@ -183,7 +174,7 @@ class TimeSeriesModelRegistry:
         X_train_full, y_train_full = train_data.iloc[:, :-1], train_data.iloc[:, -1]
         X_out_of_sample, y_out_of_sample = out_of_sample_data.iloc[:, :-1], out_of_sample_data.iloc[:, -1]
 
-        print('\n')
+        # print('\n')
         for model_name, model_info in self.models.items():
             model_class = model_info['model_class']
             best_params = model_info['best_params']
@@ -200,7 +191,7 @@ class TimeSeriesModelRegistry:
                                                        'out_sample_mape_error': out_sample_mape_error,
                                                        'y_pred_out_sample': y_pred_out_sample,
                                                        'y_out_sample': y_out_of_sample}
-            print(f"Model: {model_name}, Out-of-Sample RMSE: {out_sample_rmse_error}, MAPE: {out_sample_mape_error}")
+            oos_results_logger.info(f"Model: {model_name}, Out-of-Sample RMSE: {out_sample_rmse_error}, MAPE: {out_sample_mape_error}")
 
         return final_out_of_sample_results
 
@@ -234,6 +225,8 @@ if __name__ == "__main__":
     with open(os.path.join(results_dir, timestamp_folder, 'model_notes.txt'), 'w') as f:
         f.write(run_notes)
 
+    # setup_logging(f"ml_prediction.log", os.path.join(logging_dir, timestamp_folder))
+
     #### Make the below inputs/configs/files or the like in the future? ####
     ticker = 'DUK'
     lookahead = 1
@@ -257,8 +250,8 @@ if __name__ == "__main__":
 
     registry = TimeSeriesModelRegistry(logging_path=os.path.join(logging_dir, timestamp_folder), data=data, final_test_size=test_period_length)
     
-    # # Linear regression model wit h no hyperparameters
-    # registry.register('Linear Regression', LinearRegressionModel, {})
+    # Linear regression model wit h no hyperparameters
+    registry.register('Linear Regression', LinearRegressionModel, {})
 
     # RandomForest model with hyperparams
     rf_param_grid = {
@@ -266,10 +259,24 @@ if __name__ == "__main__":
         'max_depth': [5, 10]
     }
     registry.register('Random Forest', RandomForestModel, rf_param_grid)
+
+    # SARIMAX model with hyperparams
+    # sarimax_param_grid = {
+    #     'order': [(1, 0, 0), (0, 0, 1), (1, 0, 1)], # AR(1), MA(1), ARIMA(1, 0, 1)
+    #     'seasonal_order': [(1, 0, 1, 252), (1, 0, 1, 126)], # 1-year and 0.5-year seasonal periodicity
+    #     'trend': ['n', 'c']
+    # }
+    # sarimax_param_grid = {
+    #     'order': [(1, 0, 1)], # AR(1), MA(1), ARIMA(1, 0, 1)
+    #     'seasonal_order': [(0, 0, 0, 0)], # 1-year and 0.5-year seasonal periodicity
+    #     'trend': ['n']
+    # }
+    # registry.register('SARIMAX', SARIMAXModel, sarimax_param_grid)
     
     
     cv_results = registry.perform_walk_forward_cv(train_period_length, test_period_length, n_jobs=-1, expanding_window=True)
-    print("Final Walk-Forward Cross-Validation Results: ", cv_results)
+    ml_pred_logger = setup_logging(f"ml_prediction.log", os.path.join(logging_dir, timestamp_folder))
+    ml_pred_logger.info("Final Walk-Forward Cross-Validation Results: ", cv_results)
 
     out_sample_results = registry.out_of_sample_predict()
 
@@ -277,6 +284,7 @@ if __name__ == "__main__":
     preds_df = pd.DataFrame(data=data.iloc[-test_period_length:, -1].values, columns=['y_true']) # start with the true value
     model_oos_errors = pd.DataFrame(columns=['oos_error'])
     
+    ml_pred_logger.info("Extracting out-of-sample results...")
     for model_name in out_sample_results.keys():
         # compile out of sample errors for each model
         out_sample_error = out_sample_results[model_name]['out_sample_rmse_error']
@@ -287,11 +295,79 @@ if __name__ == "__main__":
         preds_df = pd.concat([preds_df, pd.DataFrame(data=out_sample_preds, columns=[model_name.replace(" ", "") + '_preds'])], axis=1)
 
     preds_df.index = data.index[-test_period_length:]
-    preds_df.to_csv(os.path.join(results_dir, timestamp_folder, f'preds_df.csv'))
 
+    ml_pred_logger.info("Savings out-of-sample predictions and errors dataframes...")
+    preds_df.to_csv(os.path.join(results_dir, timestamp_folder, f'oos_preds_df.csv'))
+    model_oos_errors.to_csv(os.path.join(results_dir, timestamp_folder, f'model_oos_errors.csv'))
 
-    model_oos_errors.to_csv(os.path.join(results_dir, timestamp_folder, f'model_out_of_sample_errors.csv'))
-
-
+    ml_pred_logger.info("Exporting model registry object to pickle file...")
     model_results_filepath = os.path.join(results_dir, timestamp_folder, 'model_results.pkl')
     save_pickle_file(registry.models, model_results_filepath)
+
+
+    def build_flattened_list(param, start_idx=None, end_idx=None):
+        if start_idx and not end_idx:
+            results = cv_results[param][start_idx:]
+        elif not start_idx and end_idx:
+            results = cv_results[param][:end_idx]
+        else:
+            results = cv_results[param][start_idx:end_idx]
+
+        result_minus_dupes = [arr for idx, arr in enumerate(results) if idx%2==0]
+        flattened_result = [date for sublist in result_minus_dupes for date in sublist]
+
+        return flattened_result
+
+
+    ml_pred_logger.info("Compiling cross-validation results for Dash visualization...")
+    model_train_data = registry.models
+    preds_dfs = []
+    error_dfs = []
+
+    total_model_data = pd.DataFrame()
+    for model_name, model_metadata in model_train_data.items():
+        # extract cv_results
+        cv_results = model_train_data[model_name]['cv_results']
+
+        # Dictionary to store unique elements and their first occurrence index
+        unique_elements = {}
+        for index, element in enumerate(cv_results['Params']):
+            # Use the element as a key in a dictionary, with the first occurrence index as the value
+            element_tuple = tuple(element.items())  # Convert dict to tuple for hashable key
+            if element_tuple not in unique_elements:
+                unique_elements[element_tuple] = index
+
+        # Retrieve unique elements and their starting indices
+        unique_params = [dict(element) for element in unique_elements.keys()]
+        start_indices = list(unique_elements.values())
+
+
+        for i in range(len(start_indices)):
+            param_set = unique_params[i]
+            start_idx = start_indices[i]
+            
+            # Check if there is a next index to use as the end
+            if i + 1 < len(start_indices):
+                end_idx = start_indices[i + 1]
+            else:
+                end_idx = None
+            
+            error_types = cv_results['ErrorType'][start_idx:end_idx]
+            error_vals = cv_results['ErrorVal'][start_idx:end_idx]
+            error_matrix = pd.DataFrame(data={'modelName': [model_name]*len(error_types), 'modelParams': [param_set]*len(error_types), 'ErrorType': error_types, 'ErrorVal': error_vals})
+            error_dfs.append(error_matrix)
+
+            test_indices = build_flattened_list('TestIndex', start_idx, end_idx)
+            y_true = build_flattened_list('yTrue', start_idx, end_idx)
+            y_pred = build_flattened_list('yPred', start_idx, end_idx)
+
+            pred_df = pd.DataFrame(data={'modelName': model_name, 'modelParams': [param_set], 'yTrue': y_true, 'yPred': y_pred}, index=test_indices)
+            preds_dfs.append(pred_df)
+
+    preds_df = pd.concat(preds_dfs, axis=0)
+    errors_df = pd.concat(error_dfs, axis=0)
+
+    preds_df.to_csv(os.path.join(results_dir, timestamp_folder, "model_preds_df.csv"))
+    errors_df.to_csv(os.path.join(results_dir, timestamp_folder, "errors_df.csv"))
+    
+    ml_pred_logger.info("ml_prediction.py complete!")

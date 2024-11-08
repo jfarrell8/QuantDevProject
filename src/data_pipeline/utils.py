@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 from typing import List, Dict, Any
 import os
+import sys
 import logging
 from dotenv import load_dotenv
 import pickle
@@ -11,7 +12,6 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import joblib
 import glob
 from sklearn.preprocessing import StandardScaler, RobustScaler
-from models import LinearRegressionModel, RandomForestModel
 
 # Save dictionary to a pickle file
 def save_pickle_file(my_dict: dict, filepath: str) -> None:
@@ -21,7 +21,6 @@ def save_pickle_file(my_dict: dict, filepath: str) -> None:
 def load_pickle_file(filename: str) -> Dict:
     return joblib.load(filename)
 
-
 def api_get(url: str) -> Dict[str, Any] | str:
     response = requests.get(url)
     if response.status_code == 200:
@@ -29,7 +28,6 @@ def api_get(url: str) -> Dict[str, Any] | str:
         return data
     else:
         print(f"Error: {response.status_code}")
-
 
 def nan_series_handling(series: pd.Series, data_type: str='int') -> pd.Series:
     # Step 1: Convert to numeric, coercing errors to NaN
@@ -43,20 +41,42 @@ def nan_series_handling(series: pd.Series, data_type: str='int') -> pd.Series:
 
     return series
 
+def setup_logging(log_file, root_dir, logger_name=None):
+    # Create a unique logger name if not provided
+    if logger_name is None:
+        logger_name = log_file  # Use log file name to uniquely identify the logger
 
-def setup_logging(model_name, root_dir):
-    # set up logging for the current process
-    process_id = os.getpid()
-    # log_file = f"wfcv_log_{process_id}_{model_name.replace(' ', '')}"
-    log_file = f"wfcv_log_{model_name.replace(' ', '')}.txt"
+    # Create or retrieve the logger
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(logging.INFO)
+
+    # Check if the logger has handlers already, if so, clear them to prevent duplicates
+    if logger.hasHandlers():
+        logger.handlers.clear()
+
+    # Set up the log file path
     log_path = os.path.join(root_dir, log_file)
     
-    # configure logging to write to a specific file
-    logging.basicConfig(
-        filename=log_path,
-        level=logging.INFO,
-        format = '%(asctime)s - %(levelname)s - %(message)s'
-    )
+    # Create a file handler
+    file_handler = logging.FileHandler(log_path)
+    file_handler.setLevel(logging.INFO)
+
+    # Define a formatter and set it for the handler
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(formatter)
+
+    # Add the file handler to the logger
+    logger.addHandler(file_handler)
+
+    # Create a console handler and set the same formatter
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(formatter)
+    
+    # Add the console handler to the logger
+    logger.addHandler(console_handler)
+
+    return logger  # Return the configured logger
 
 
 def analyze_sentiment_finbert(text):
@@ -71,7 +91,6 @@ def analyze_sentiment_finbert(text):
     negative_prob = probabilities[0][0].item()
     
     return positive_prob - negative_prob  # Returns a score between -1 and 1
-
 
 def get_most_recent_folder(directory_path):
     # Get all folders in the directory
@@ -88,7 +107,6 @@ def drop_corr_pair1(df: pd.DataFrame, threshold: float = 0.9) -> pd.DataFrame:
     df = df.drop(columns=to_drop)
 
     return df
-
 
 def winsorize_data(data, lower_percentile_threshold, upper_percentile_threshold):
     """

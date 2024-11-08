@@ -992,7 +992,8 @@ def main():
     # resample to daily time series to match other datasets later
     fundamental_df_daily = fundamental_df.resample('D').ffill()
     
-
+    
+    ## GET SENTIMENT SCORES FROM 10Qs and 10Ks ##
     # get EDGAR 10Qs and 10Ks
     print('Downloading EDGAR 10Qs and 10Ks...')
     user_agent = email + ' ' + full_name
@@ -1019,17 +1020,7 @@ def main():
     sentiments.set_index('period', inplace=True)
     sentiments_daily = sentiments.resample('D').ffill().bfill()
 
-    # # join to fundamental data since both are quarterly
-    # # fundamental_df = fundamental_df.join(sentiments)
-    # fundamental_df = pd.merge(fundamental_df, sentiments, on='period')
-
-    # # need to resample to daily data
-    # fundamental_df.set_index('period', inplace=True)
-    # # fundamental_df.index = pd.to_datetime(fundamental_df.index)
-    # fundamental_df.index.name = 'period'
-    # fundamental_df_daily = fundamental_df.resample('D').ffill()
-    # fundamental_df_daily.reset_index(inplace=True)
-
+    ## GET ECON DATA ###
     # get EIA data: crude oil and natural gas spot prices 
     eia_codes = db.get_eia_code_info() # right now this is a list of tuples
     eia_cache = cache_factory.get_cache_handler("eia", timedelta(hours=24))

@@ -3,8 +3,8 @@ import numpy as np
 import joblib
 import os
 from dotenv import load_dotenv
-from ml_prediction import LinearRegressionModel, RandomForestModel
-from utils import get_most_recent_folder
+from src.data_pipeline.ml_prediction import LinearRegressionModel, RandomForestModel
+from src.data_pipeline.utils import get_most_recent_folder
 import yfinance as yf
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -55,76 +55,76 @@ def calculate_pnl(price_data: pd.DataFrame, trade_log: pd.DataFrame) -> pd.DataF
     
     return merged_data
 
-def plot_trades(price_data: pd.DataFrame, trade_log: pd.DataFrame):
-    """
-    Plot price chart with entry and exit points
+# def plot_trades(price_data: pd.DataFrame, trade_log: pd.DataFrame):
+#     """
+#     Plot price chart with entry and exit points
     
-    Parameters:
-    price_data: DataFrame with columns ['date' (int), 'Adj Close']
-    trade_log: DataFrame with columns ['date' (int), 'old_position', 'new_position']
-    """
-    plt.figure(figsize=(15, 8))
+#     Parameters:
+#     price_data: DataFrame with columns ['date' (int), 'Adj Close']
+#     trade_log: DataFrame with columns ['date' (int), 'old_position', 'new_position']
+#     """
+#     plt.figure(figsize=(15, 8))
     
-    # Plot price
-    # plt.plot(price_data['date'], price_data['Adj Close'], label='Price', alpha=0.7)
-    plt.plot(price_data.index, price_data['Adj Close'], label='Price', alpha=0.7)
+#     # Plot price
+#     # plt.plot(price_data['date'], price_data['Adj Close'], label='Price', alpha=0.7)
+#     plt.plot(price_data.index, price_data['Adj Close'], label='Price', alpha=0.7)
 
     
-    # Long entries (from 0 to 1)
-    long_entries = trade_log[
-        (trade_log['old_position'] == 0) & (trade_log['new_position'] == 1)
-    ]
+#     # Long entries (from 0 to 1)
+#     long_entries = trade_log[
+#         (trade_log['old_position'] == 0) & (trade_log['new_position'] == 1)
+#     ]
     
-    # Long exits (from 1 to 0)
-    long_exits = trade_log[
-        (trade_log['old_position'] == 1) & (trade_log['new_position'] == 0)
-    ]
+#     # Long exits (from 1 to 0)
+#     long_exits = trade_log[
+#         (trade_log['old_position'] == 1) & (trade_log['new_position'] == 0)
+#     ]
     
-    # Short entries (from 0 to -1)
-    short_entries = trade_log[
-        (trade_log['old_position'] == 0) & (trade_log['new_position'] == -1)
-    ]
+#     # Short entries (from 0 to -1)
+#     short_entries = trade_log[
+#         (trade_log['old_position'] == 0) & (trade_log['new_position'] == -1)
+#     ]
     
-    # Short exits (from -1 to 0)
-    short_exits = trade_log[
-        (trade_log['old_position'] == -1) & (trade_log['new_position'] == 0)
-    ]
+#     # Short exits (from -1 to 0)
+#     short_exits = trade_log[
+#         (trade_log['old_position'] == -1) & (trade_log['new_position'] == 0)
+#     ]
     
-    # Plot entry and exit points
-    # For long trades
-    # plt.scatter(long_entries['date'],
-    #              price_data.loc[price_data['date'].isin(long_entries['date']), 'Adj Close'],
-    plt.scatter(long_entries.index, 
-               price_data.loc[price_data.index.isin(long_entries.index), 'Adj Close'],
-               marker='^', color='green', s=100, label='Long Entry')
-    # plt.scatter(long_exits['date'], 
-    #            price_data.loc[price_data['date'].isin(long_exits['date']), 'Adj Close'],
-    #            marker='v', color='red', s=100, label='Long Exit')
-    plt.scatter(long_exits.index, 
-               price_data.loc[price_data.index.isin(long_exits.index), 'Adj Close'],
-               marker='v', color='red', s=100, label='Long Exit')
+#     # Plot entry and exit points
+#     # For long trades
+#     # plt.scatter(long_entries['date'],
+#     #              price_data.loc[price_data['date'].isin(long_entries['date']), 'Adj Close'],
+#     plt.scatter(long_entries.index, 
+#                price_data.loc[price_data.index.isin(long_entries.index), 'Adj Close'],
+#                marker='^', color='green', s=100, label='Long Entry')
+#     # plt.scatter(long_exits['date'], 
+#     #            price_data.loc[price_data['date'].isin(long_exits['date']), 'Adj Close'],
+#     #            marker='v', color='red', s=100, label='Long Exit')
+#     plt.scatter(long_exits.index, 
+#                price_data.loc[price_data.index.isin(long_exits.index), 'Adj Close'],
+#                marker='v', color='red', s=100, label='Long Exit')
     
-    # For short trades
-    # plt.scatter(short_entries['date'], 
-    #            price_data.loc[price_data['date'].isin(short_entries['date']), 'Adj Close'],
-    #            marker='v', color='purple', s=100, label='Short Entry')
-    plt.scatter(short_entries.index, 
-               price_data.loc[price_data.index.isin(short_entries.index), 'Adj Close'],
-               marker='v', color='purple', s=100, label='Short Entry')
-    # plt.scatter(short_exits['date'], 
-    #            price_data.loc[price_data['date'].isin(short_exits['date']), 'Adj Close'],
-    #            marker='^', color='orange', s=100, label='Short Exit')
-    plt.scatter(short_exits.index, 
-               price_data.loc[price_data.index.isin(short_exits.index), 'Adj Close'],
-               marker='^', color='orange', s=100, label='Short Exit')
+#     # For short trades
+#     # plt.scatter(short_entries['date'], 
+#     #            price_data.loc[price_data['date'].isin(short_entries['date']), 'Adj Close'],
+#     #            marker='v', color='purple', s=100, label='Short Entry')
+#     plt.scatter(short_entries.index, 
+#                price_data.loc[price_data.index.isin(short_entries.index), 'Adj Close'],
+#                marker='v', color='purple', s=100, label='Short Entry')
+#     # plt.scatter(short_exits['date'], 
+#     #            price_data.loc[price_data['date'].isin(short_exits['date']), 'Adj Close'],
+#     #            marker='^', color='orange', s=100, label='Short Exit')
+#     plt.scatter(short_exits.index, 
+#                price_data.loc[price_data.index.isin(short_exits.index), 'Adj Close'],
+#                marker='^', color='orange', s=100, label='Short Exit')
     
-    plt.title('Price Chart with Trade Points')
-    plt.xlabel('Date')
-    plt.ylabel('Price')
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.show()
+#     plt.title('Price Chart with Trade Points')
+#     plt.xlabel('Date')
+#     plt.ylabel('Price')
+#     plt.legend()
+#     plt.grid(True, alpha=0.3)
+#     plt.tight_layout()
+#     plt.show()
 
 def print_performance_summary(results: pd.DataFrame, trade_log: pd.DataFrame):
     """Print key performance metrics"""
@@ -429,10 +429,6 @@ if __name__ == "__main__":
 
     filename = os.path.join(results_dir, "model_results.pkl")
     j = joblib.load(filename)
-    # for model_name, model_info in j.items():
-    #     print(model_name)
-    #     df = pd.DataFrame(j[model_name]['cv_results'])
-    #     df.to_excel(os.path.join(results_dir, f"{model_name.lower().replace(' ', '')}_model_results.xlsx"), index=False)
 
     # optimal model - hard code for testing right now
     df = pd.DataFrame(j['Random Forest']['cv_results'])
@@ -479,27 +475,6 @@ if __name__ == "__main__":
     close_prices = close_prices.to_frame()
     close_prices.reset_index(inplace=True)
     close_prices.index.name = 'date'
-    merged_log = pd.merge(close_prices, trade_log, how='left', on='date')
+    close_prices.to_csv(os.path.join(results_dir, 'close_prices.csv'), index=True)
 
-    # # Analyze results # metrics has 'total_trades', 'total_turnover', 'avg_time_between_trades'
-    # # print(f"Average threshold: {metrics['avg_threshold']:.3%}")
-    # print(f"Average time between trades: {metrics['avg_time_between_trades']:.1f} days")
-    # print(f"Total turnover: {metrics['total_turnover']:.1f}")
-    
-    # # Visualize results
-    # visualize_trading_strategy(close_prices, trade_log)
-
-    # print('y')
-
-    # Calculate PnL
-    results = calculate_pnl(close_prices, trade_log)
-
-    # Print performance summary
-    print_performance_summary(results, trade_log)
-
-    # Plot the trades
-    plot_trades(close_prices, trade_log)
-
-    # plt.ion()  # Turn on interactive mode at the start of your script
-    # # ... your code ...
-    # input("Press Enter to close the plot...")  # Keep the plot window open until Enter is pressed
+    print('Trading results finished processing!')
