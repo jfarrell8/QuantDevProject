@@ -26,8 +26,7 @@ src/
 ### Installation
 1. Clone the repository
 ```bash
-git clone [repository-url]
-cd [project-directory]
+git clone https://github.com/jfarrell8/QuantDevProject.git
 ```
 
 2. Install dependencies using Poetry
