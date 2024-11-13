@@ -450,8 +450,6 @@ if __name__ == "__main__":
     close_prices = close_prices.loc[cv_df.index]
     
 
-    # print(cv_df[['yPred']].describe())
-
     # Initialize strategy
     strategy = EnhancedTradingStrategy(
         lambda_turnover=0.001,      # Turnover penalty parameter
