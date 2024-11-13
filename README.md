@@ -3,6 +3,61 @@
 ## Project Description
 A machine learning-based quantitative trading strategy implementation focused on Duke Energy's stock returns. The project combines fundamental analysis, economic indicators, sentiment analysis, and weather data to predict 1-day-ahead returns and execute trading decisions.
 
+## 📁 Project Structure
+```
+src/
+├── data_pipeline/
+│   ├── data_pipeline.py
+│   ├── cache_system.py
+│   ├── ml_prediction.py
+│   └── trading_strategy.py
+├── visualization/
+│   └── app.py
+├── poetry.lock
+└── pyproject.toml
+```
+
+## ⚙️ Setup and Installation
+
+### Prerequisites
+- Python 3.8+
+- Poetry (Python dependency management tool)
+
+### Installation
+1. Clone the repository
+```bash
+git clone [repository-url]
+cd [project-directory]
+```
+
+2. Install dependencies using Poetry
+```bash
+poetry install
+```
+
+### Execution
+Run the following scripts in sequence using Poetry:
+
+1. Data Pipeline - Extracts and loads data into Postgres
+```bash
+poetry run python src/data_pipeline/data_pipeline.py
+```
+
+2. ML Prediction - Performs model training and prediction
+```bash
+poetry run python src/data_pipeline/ml_prediction.py
+```
+
+3. Trading Strategy - Executes trading logic
+```bash
+poetry run python src/data_pipeline/trading_strategy.py
+```
+
+4. Visualization - Launches the Dash application
+```bash
+poetry run python src/visualization/app.py
+```
+
 ## 🏗️ Architecture
 
 ### Data Pipeline
@@ -30,7 +85,7 @@ A machine learning-based quantitative trading strategy implementation focused on
 ### Visualization
 - Custom Dash application for model and strategy performance monitoring
 
-## 📁 Project Structure
+## 📁 Script Documentation
 
 ### `data_pipeline.py`
 - Implements Postgres database schema construction
@@ -73,12 +128,6 @@ The project serves as an introductory implementation of an ML-based quantitative
 - Enhanced risk management
 - Extended backtesting capabilities
 - Real-time trading integration
-
-## ⚙️ Setup and Installation
-[To be added: Installation steps, dependencies, and configuration instructions]
-
-## 📊 Usage
-[To be added: Example usage, configuration options, and running instructions]
 
 ## 📈 Performance
 [To be added: Strategy performance metrics and visualization examples]
