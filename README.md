@@ -123,14 +123,14 @@ poetry run python src/visualization/app.py
 
 ## 🔄 Future Improvements
 The project serves as an introductory implementation of an ML-based quantitative trading strategy. Potential areas for enhancement include:
+- Uncertainty quantification into the framework (e.g. conformal prediction)
+- Additional time series models (e.g. neural nets)
 - Additional factor incorporation
 - Strategy optimization
-- Enhanced risk management
-- Extended backtesting capabilities
 - Real-time trading integration
 
 ## 📈 Performance
 [To be added: Strategy performance metrics and visualization examples]
 
 ## 📝 License
-[To be added: License information]
+This project is licensed under the MIT License - see the LICENSE file for details.
