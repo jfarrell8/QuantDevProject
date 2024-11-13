@@ -11,6 +11,9 @@ src/
 │   ├── cache_system.py
 │   ├── ml_prediction.py
 │   └── trading_strategy.py
+├── notebooks/
+│   ├── QuantDevEDA.ipynb
+│   └── QuantDevEDA.html
 ├── visualization/
 │   └── app.py
 ├── poetry.lock
@@ -56,6 +59,25 @@ poetry run python src/data_pipeline/trading_strategy.py
 ```bash
 poetry run python src/visualization/app.py
 ```
+
+## 📊 Exploratory Data Analysis
+The project includes comprehensive exploratory data analysis (EDA) of all data sources used in the trading strategy. This analysis can be found in the `notebooks` directory:
+
+- `QuantDevEDA.ipynb`: Jupyter notebook containing:
+  - Detailed analysis of each data source:
+    - Fundamental factors from AlphaVantage
+    - Economic indicators from EIA
+    - Sentiment analysis from SEC filings
+    - Weather data from Open-Meteo
+  - Data cleaning and preprocessing steps
+  - Feature engineering process
+  - Initial dataset creation for ML predictions
+  - Visualization of key relationships and patterns
+  - Statistical analysis of features
+
+- `QuantDevEDA.html`: HTML export of the notebook for easy viewing without Jupyter
+
+The EDA process documents the rationale behind feature selection and engineering decisions that inform the final machine learning model.
 
 ## 🏗️ Architecture
 
